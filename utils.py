@@ -15,7 +15,21 @@ MEMORY_MAX = 10
 
 # User's platform and environment information
 USER_PLATFORM = sys.platform
-USER_ENV = os.environ.get("TERM", "N/A")
+
+if USER_PLATFORM == "win32":
+    USER_ENV = os.environ.get("COMSPEC")
+else:
+    USER_ENV = os.environ.get("SHELL", "unknown")
+
+USER_CWD = os.getcwd()
+USER_CWD_FILES = os.listdir(USER_CWD)
+
+USER_INFO = f"""User's Information:
+- Platform: {USER_PLATFORM}
+- Environment: {USER_ENV}
+- Current Working Directory: {USER_CWD}
+- Files in Current Working Directory: {USER_CWD_FILES}
+"""
 
 
 class Agent:
@@ -55,7 +69,7 @@ class Agent:
             messages = self.memory + messages
 
         with self.client.messages.stream(
-            system=f"Your primary function is to assist the user with tasks related to terminal commands in their respective platform. You can also help with code and other queries. Ths user's platform is {USER_PLATFORM} and their terminal is {USER_ENV}. Use formatting appropriate for the user's terminal.",
+            system=f"Your primary function is to assist the user with tasks related to terminal commands in their respective platform. You can also help with code and other queries. Information about the user's platform, environment, and current working directory is provided below.\n\n{USER_INFO}",
             max_tokens=1024,
             messages=messages,
             model="claude-3-sonnet-20240229",
