@@ -1,4 +1,6 @@
+ask
 .env
 memory.json
 
 __pycache__/
+venv/
