@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 from enum import Enum
 
@@ -32,20 +33,95 @@ USER_INFO = f"""User's Information:
 """
 
 
+def write_file(file_name, content):
+    file_path = os.path.join(USER_CWD, file_name)
+    with open(file_path, "w") as file:
+        file.write(content)
+    return f"File '{file_name}' written successfully."
+
+
+def construct_format_tool_for_claude_prompt(name, description, parameters):
+    constructed_prompt = (
+        "<tool_description>\n"
+        f"<tool_name>{name}</tool_name>\n"
+        "<description>\n"
+        f"{description}\n"
+        "</description>\n"
+        "<parameters>\n"
+        f"{construct_format_parameters_prompt(parameters)}\n"
+        "</parameters>\n"
+        "</tool_description>"
+    )
+    return constructed_prompt
+
+
+def construct_format_parameters_prompt(parameters):
+    constructed_prompt = "\n".join(
+        f"<parameter>\n<name>{parameter['name']}</name>\n<type>{parameter['type']}</type>\n<description>{parameter['description']}</description>\n</parameter>"
+        for parameter in parameters
+    )
+    return constructed_prompt
+
+
+FILE_WRITER_TOOL = construct_format_tool_for_claude_prompt(
+    name="file_writer",
+    description="Writes content to a new file in the current working directory.",
+    parameters=[
+        {
+            "name": "file_name",
+            "type": "str",
+            "description": "The name of the file to create (including extension).",
+        },
+        {
+            "name": "content",
+            "type": "str",
+            "description": "The content to write to the file.",
+        },
+    ],
+)
+
+
+def construct_tool_use_system_prompt(tools):
+    tool_use_system_prompt = (
+        "In this environment you have access to a set of tools you can use to answer the user's question.\n"
+        "\n"
+        "You may call them like this:\n"
+        "<function_calls>\n"
+        "<invoke>\n"
+        "<tool_name>$TOOL_NAME</tool_name>\n"
+        "<parameters>\n"
+        "<$PARAMETER_NAME>$PARAMETER_VALUE</$PARAMETER_NAME>\n"
+        "...\n"
+        "</parameters>\n"
+        "</invoke>\n"
+        "</function_calls>\n"
+        "\n"
+        "Here are the tools available:\n"
+        "<tools>\n" + "\n".join([tool for tool in tools]) + "\n</tools>"
+    )
+    return tool_use_system_prompt
+
+
+def extract_between_tags(tag: str, string: str, strip: bool = False) -> list[str]:
+    ext_list = re.findall(f"<{tag}>(.*?)</{tag}>", string, re.DOTALL)
+    if strip:
+        ext_list = [e.strip() for e in ext_list]
+    return ext_list
+
+
+def construct_successful_function_run_injection_prompt(invoke_results):
+    constructed_prompt = (
+        "<function_results>\n"
+        + "\n".join(
+            f"<result>\n<tool_name>{res['tool_name']}</tool_name>\n<stdout>\n{res['tool_result']}\n</stdout>\n</result>"
+            for res in invoke_results
+        )
+        + "\n</function_results>"
+    )
+    return constructed_prompt
+
+
 class Agent:
-    """
-    A class representing an AI agent.
-
-    Args:
-        use_memory (bool): Whether to use long-term conversation history.
-
-    Attributes:
-        client (Anthropic): An instance of the Anthropic API client.
-        use_memory (bool): Whether to use long-term conversation history.
-        chat (list): A list to store the short-term conversation history.
-        memory (list): A list to store the loaded long-term conversation history.
-    """
-
     def __init__(self, use_memory=False) -> None:
         self.client = Anthropic(
             api_key=os.environ.get("ANTHROPIC_API_KEY"),
@@ -54,48 +130,75 @@ class Agent:
         self.chat = []
         if self.use_memory:
             self.memory = self.load_memory()
+        self.system_prompt = (
+            f"Your primary function is to assist the user with tasks related to terminal commands in their respective platform. You can also help with code and other queries. Information about the user's platform, environment, and current working directory is provided below.\n\n{USER_INFO}\n\n"
+            + construct_tool_use_system_prompt([FILE_WRITER_TOOL])
+        )
 
     def run(self, query: str) -> None:
-        """
-        Run the agent with the given query.
-
-        Args:
-            query (str): The user's query.
-        """
         self.chat.append({"role": "user", "content": query})
-        messages = self.chat.copy()
-
-        if self.use_memory:
-            messages = self.memory + messages
+        messages = [{"role": "user", "content": query}]
 
         with self.client.messages.stream(
-            system=f"Your primary function is to assist the user with tasks related to terminal commands in their respective platform. You can also help with code and other queries. Information about the user's platform, environment, and current working directory is provided below.\n\n{USER_INFO}",
+            system=self.system_prompt,
             max_tokens=1024,
             messages=messages,
             model="claude-3-sonnet-20240229",
+            stop_sequences=["</function_calls>"],
         ) as stream:
             for text in stream.text_stream:
                 print(text, end="", flush=True)
             print()
 
-        message = stream.get_final_message()
+        message = stream.get_final_message().content[0].text
 
-        try:
-            response = message.content[0].text
-            self.chat.append({"role": "assistant", "content": response})
-            if self.use_memory:
-                self.save_memory(query, response)
-        except Exception as e:
-            print(f"Error (claude): {e}")
+        if "<function_calls>" in message:
+            message = message + "</function_calls>"
+            function_calls = extract_between_tags("function_calls", message)
+            for function_call in function_calls:
+                tool_name = extract_between_tags("tool_name", function_call)[0]
+                if tool_name == "file_writer":
+                    file_name = extract_between_tags("file_name", function_call)[0]
+                    content = extract_between_tags("content", function_call)[0]
+                    result = write_file(file_name, content)
+                    function_results = (
+                        construct_successful_function_run_injection_prompt(
+                            [{"tool_name": "file_writer", "tool_result": result}]
+                        )
+                    )
+                    partial_assistant_message = message + function_results
+
+                    final_message = (
+                        self.client.messages.create(
+                            model="claude-3-sonnet-20240229",
+                            max_tokens=1024,
+                            messages=[
+                                {"role": "user", "content": query},
+                                {
+                                    "role": "assistant",
+                                    "content": partial_assistant_message,
+                                },
+                            ],
+                            system=self.system_prompt,
+                        )
+                        .content[0]
+                        .text
+                    )
+
+                    print(final_message)
+
+                    messages.append({"role": "assistant", "content": final_message})
+                    break
+                else:
+                    messages.append({"role": "assistant", "content": message})
+                    break
+        else:
+            messages.append({"role": "assistant", "content": message})
+
+        if self.use_memory:
+            self.save_memory(query, messages[-1]["content"])
 
     def save_memory(self, query: str, response: str) -> None:
-        """
-        Save the long-term conversation history to a file.
-
-        Args:
-            query (str): The user's query.
-            response (str): The agent's response.
-        """
         memory = self.load_memory()
         memory = memory + [
             {"role": "user", "content": query},
@@ -107,12 +210,6 @@ class Agent:
             json.dump(memory, f)
 
     def load_memory(self) -> list[tuple[str, str]]:
-        """
-        Load the long-term conversation history from a file.
-
-        Returns:
-            list[tuple[str, str]]: The loaded long-term conversation history.
-        """
         if not os.path.exists(MEMORY_FILE):
             return []
         with open(MEMORY_FILE, "r") as f:
@@ -120,10 +217,6 @@ class Agent:
 
 
 class PrintStyle(Enum):
-    """
-    An enumeration of ANSI escape codes for text formatting.
-    """
-
     RED = "\033[91m"
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
