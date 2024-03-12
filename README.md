@@ -55,10 +55,10 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-6. Copy the `.env.example` file to a new file named `.env`:
+6. Rename `.env.example` to `.env`:
 
 ```bash
-cp .env.example .env
+mv .env.example .env
 ```
 
 - Then open the `.env` file in a text editor and add your Anthropic API key:
