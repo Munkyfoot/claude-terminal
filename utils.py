@@ -53,12 +53,9 @@ class Agent:
 
         if self.use_memory:
             messages = self.memory + messages
-            memory_message = "You are capable of remembering previous interactions. Your conversation history is stored to a file and loaded into your memory. Use this to improve your responses."
-        else:
-            memory_message = "You are capable of remembering previous interactions, but only within this session. Your conversation history is not currently stored to between sessions."
 
         with self.client.messages.stream(
-            system=f"Your primary function is to assist the user with tasks related to terminal commands in their respective platform. You can also help with code and other queries. Ths user's platform is {USER_PLATFORM} and their terminal is {USER_ENV}. Use formatting appropriate for the user's terminal. {memory_message}",
+            system=f"Your primary function is to assist the user with tasks related to terminal commands in their respective platform. You can also help with code and other queries. Ths user's platform is {USER_PLATFORM} and their terminal is {USER_ENV}. Use formatting appropriate for the user's terminal.",
             max_tokens=1024,
             messages=messages,
             model="claude-3-sonnet-20240229",
