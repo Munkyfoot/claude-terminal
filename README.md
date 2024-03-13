@@ -1,6 +1,6 @@
 # Claude Terminal
 
-Claude Terminal is a Python-based command-line interface (CLI) tool that allows you to interact with Anthropic's Claude, an AI assistant. It provides a convenient way to chat with Claude and get assistance with various tasks, including terminal commands, code, and other queries.
+Claude Terminal is a Python-based command-line interface (CLI) tool that allows you to interact with Anthropic's Claude, an AI assistant. It provides a convenient way to chat with Claude and get assistance with various tasks, including terminal commands, code, and other queries. Claude Terminal now supports function calling, which enables the writing of files based on user interactions.
 
 ## Features
 
@@ -8,6 +8,7 @@ Claude Terminal is a Python-based command-line interface (CLI) tool that allows 
 - Get assistance with terminal commands specific to your platform (Linux, Windows, or macOS)
 - Receive help with code and other queries
 - Optionally store conversation history to improve responses over time
+- **New**: Function calling support, enabling file writing based on user interactions
 
 ## Prerequisites
 
@@ -84,6 +85,7 @@ Example (without initial query):
 ```bash
 python main.py
 ```
+
 **Note:** If you don't provide an initial query, you can start the conversation by typing your first message after running the command.
 
 Example (with initial query):
@@ -99,6 +101,16 @@ Example (with initial query and memory):
 ```bash
 python main.py "How can I list files in a directory?" --memory
 ```
+
+**Note:** If you provide the `--memory` flag, previous conversation history will be loaded and any new conversation history will be saved to long-term memory in the `memory.json` file. The number of messages saved to memory is limited to value specified in MEMORY_MAX in the `utils.py` file.
+
+## File Writing with Function Calls
+
+Claude Terminal now supports function calling, which allows Claude to write files based on user interactions. When Claude generates a response that includes a function call, you will be prompted to confirm whether you want to execute the function.
+
+If you choose to run the function, Claude Terminal will process the function call and write the specified file(s) to the designated path(s) relative to the current working directory. The tool will create any necessary directories if they don't already exist.
+
+After the file writing is complete, Claude will provide a final response based on the executed function and the conversation context.
 
 ## Running from Anywhere
 
@@ -211,6 +223,7 @@ call C:\path\to\claude-terminal\venv\Scripts\deactivate.bat
 ```
 
 3. Add the project directory to your system's PATH environment variable:
+
    - Open the Start menu and search for "Environment Variables"
    - Click on "Edit the system environment variables"
    - In the System Properties window, click on the "Environment Variables" button
