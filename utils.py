@@ -152,7 +152,7 @@ class Agent:
         self.use_memory = use_memory
         self.chat = []
         if self.use_memory:
-            self.memory = self.load_memory()
+            self.load_memory()
         self.system_prompt = (
             f"Your primary function is to assist the user with tasks related to terminal commands in their respective platform. You can also help with code and other queries. Information about the user's platform, environment, and current working directory is provided below.\n\n{USER_INFO}\n\n"
             + construct_tool_use_system_prompt(
@@ -162,12 +162,16 @@ class Agent:
 
     def run(self, query: str) -> None:
         self.chat.append({"role": "user", "content": query})
-        messages = [{"role": "user", "content": query}]
+
+        if self.use_memory:
+            _messages = self.memory + self.chat
+        else:
+            _messages = self.chat
 
         with self.client.messages.stream(
             system=self.system_prompt,
             max_tokens=4096,
-            messages=messages,
+            messages=_messages,
             model=self.model,
             stop_sequences=["</function_calls>"],
         ) as stream:
@@ -238,13 +242,12 @@ class Agent:
 
                     print(final_message)
 
-                    messages.append({"role": "assistant", "content": final_message})
+                    self.chat.append({"role": "assistant", "content": final_message})
                     break
                 elif tool_name == "file_writer_multiple":
                     files_dict_str = extract_between_tags("files_dict", function_call)[
                         0
                     ]
-                    print(files_dict_str)
                     files_dict = json.loads(files_dict_str)
                     result = write_files(files_dict)
                     function_results = (
@@ -278,33 +281,29 @@ class Agent:
 
                     print(final_message)
 
-                    messages.append({"role": "assistant", "content": final_message})
+                    self.chat.append({"role": "assistant", "content": final_message})
                     break
                 else:
-                    messages.append({"role": "assistant", "content": message})
+                    self.chat.append({"role": "assistant", "content": message})
                     break
         else:
-            messages.append({"role": "assistant", "content": message})
+            self.chat.append({"role": "assistant", "content": message})
 
         if self.use_memory:
-            self.save_memory(query, messages[-1]["content"])
+            self.save_memory()
 
-    def save_memory(self, query: str, response: str) -> None:
-        memory = self.load_memory()
-        memory = memory + [
-            {"role": "user", "content": query},
-            {"role": "assistant", "content": response},
-        ]
-        if len(memory) > MEMORY_MAX:
-            memory = memory[-MEMORY_MAX:]
+    def save_memory(self) -> None:
+        memory = (self.memory + self.chat)[-MEMORY_MAX:]
         with open(MEMORY_FILE, "w") as f:
             json.dump(memory, f)
 
-    def load_memory(self) -> list[tuple[str, str]]:
-        if not os.path.exists(MEMORY_FILE):
-            return []
-        with open(MEMORY_FILE, "r") as f:
-            return json.load(f)
+    def load_memory(self) -> None:
+        self.chat = []
+        if os.path.exists(MEMORY_FILE):
+            with open(MEMORY_FILE, "r") as f:
+                self.memory = json.load(f)
+        else:
+            self.memory = []
 
 
 class PrintStyle(Enum):
