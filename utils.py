@@ -12,7 +12,7 @@ load_dotenv()
 
 # Constants
 MEMORY_FILE = "memory.json"
-MEMORY_MAX = 10
+MEMORY_MAX = 24  # Used to limit the number of messages stored in memory (applies to short and long-term memory)
 
 # User's platform and environment information
 USER_PLATFORM = sys.platform
@@ -167,6 +167,8 @@ class Agent:
             _messages = self.memory + self.chat
         else:
             _messages = self.chat
+
+        _messages = _messages[-MEMORY_MAX:]
 
         with self.client.messages.stream(
             system=self.system_prompt,
