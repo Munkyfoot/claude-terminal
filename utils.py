@@ -3,6 +3,7 @@ import os
 import re
 import sys
 from enum import Enum
+from typing import Literal
 
 from anthropic import Anthropic
 from dotenv import load_dotenv
@@ -191,11 +192,17 @@ def construct_successful_function_run_injection_prompt(invoke_results):
 
 
 class Agent:
-    def __init__(self, use_memory=False) -> None:
+    def __init__(
+        self,
+        model: Literal[
+            "claude-3-opus-20240229", "claude-3-sonnet-20240229"
+        ] = "claude-3-sonnet-20240229",
+        use_memory=False,
+    ) -> None:
         self.client = Anthropic(
             api_key=os.environ.get("ANTHROPIC_API_KEY"),
         )
-        self.model = "claude-3-sonnet-20240229"
+        self.model = model
         self.use_memory = use_memory
         self.chat = []
         if self.use_memory:

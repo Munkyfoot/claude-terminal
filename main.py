@@ -11,6 +11,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--memory", "-m", action="store_true", help="Use history to improve responses"
     )
+    parser.add_argument(
+        "--opus", "-o", action="store_true", help="Use opus model for better responses"
+    )
 
     # Parse the command-line arguments
     args = parser.parse_args()
@@ -19,7 +22,10 @@ if __name__ == "__main__":
     has_initial_query = bool(args.query)
 
     # Create an Agent instance with the specified memory usage
-    agent = Agent(use_memory=args.memory)
+    agent = Agent(
+        model="claude-3-opus-20240229" if args.opus else "claude-3-sonnet-20240229",
+        use_memory=args.memory,
+    )
 
     while True:
         try:
