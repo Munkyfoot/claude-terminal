@@ -33,7 +33,6 @@ USER_INFO = f"""User's Information:
 
 
 def get_files_dirs(use_gitignore=True, ignore_all_hidden=False):
-    prefix = ""
     output = []
 
     # Read .gitignore file if use_gitignore is True
@@ -42,7 +41,7 @@ def get_files_dirs(use_gitignore=True, ignore_all_hidden=False):
         gitignore_path = os.path.join(USER_CWD, ".gitignore")
         if os.path.isfile(gitignore_path):
             with open(gitignore_path, "r") as file:
-                gitignore_entries = set(line.strip() for line in file)
+                gitignore_entries = {line.strip() for line in file}
 
     # Helper function to check if an item should be excluded based on .gitignore
     def is_excluded(item_path):
@@ -50,32 +49,31 @@ def get_files_dirs(use_gitignore=True, ignore_all_hidden=False):
         rel_path = os.path.normpath(rel_path).replace(os.sep, "/")
         if rel_path in gitignore_entries or f"{rel_path}/" in gitignore_entries:
             return True
-        for entry in gitignore_entries:
-            if entry.endswith("/") and rel_path.startswith(entry):
-                return True
-        return False
+        return any(
+            entry.endswith("/") and rel_path.startswith(entry)
+            for entry in gitignore_entries
+        )
 
     # Helper function to build the file tree
     def tree(dir_path, indent=""):
         try:
-            nonlocal prefix
-            dir_content = os.listdir(dir_path)
+            dir_content = [
+                item
+                for item in os.listdir(dir_path)
+                if not item.startswith(".git")
+                and (not ignore_all_hidden or not item.startswith("."))
+            ]
             dir_content.sort()
-            for i, item in enumerate(dir_content):
-                if item.startswith(".git"):  # Always ignore .git directory
-                    continue
-                if ignore_all_hidden and item.startswith("."):
-                    continue
+            for item in dir_content:
                 item_path = os.path.join(dir_path, item)
-                if is_excluded(item_path):
-                    continue
-                rel_path = os.path.relpath(item_path, USER_CWD)
-                rel_path = os.path.normpath(rel_path).replace(os.sep, "/")
-                if os.path.isdir(item_path):
-                    output.append(f"{indent}{rel_path}/")
-                    tree(item_path, indent + "  ")
-                else:
-                    output.append(f"{indent}{rel_path}")
+                if not is_excluded(item_path):
+                    rel_path = os.path.relpath(item_path, USER_CWD)
+                    rel_path = os.path.normpath(rel_path).replace(os.sep, "/")
+                    if os.path.isdir(item_path):
+                        output.append(f"{indent}{rel_path}/")
+                        tree(item_path, indent + "  ")
+                    else:
+                        output.append(f"{indent}{rel_path}")
         except PermissionError:
             output.append(f"{indent}Permission denied: {dir_path}")
 
