@@ -24,14 +24,62 @@ else:
     USER_ENV = os.environ.get("SHELL", "unknown")
 
 USER_CWD = os.getcwd()
-USER_CWD_FILES = os.listdir(USER_CWD)
 
 USER_INFO = f"""User's Information:
 - Platform: {USER_PLATFORM}
 - Environment: {USER_ENV}
 - Current Working Directory: {USER_CWD}
-- Files in Current Working Directory: {USER_CWD_FILES}
 """
+
+
+def get_files_dirs(use_gitignore=True, ignore_all_hidden=False):
+    prefix = ""
+    output = []
+
+    # Read .gitignore file if use_gitignore is True
+    gitignore_entries = set()
+    if use_gitignore:
+        gitignore_path = os.path.join(USER_CWD, ".gitignore")
+        if os.path.isfile(gitignore_path):
+            with open(gitignore_path, "r") as file:
+                gitignore_entries = set(line.strip() for line in file)
+
+    # Helper function to check if an item should be excluded based on .gitignore
+    def is_excluded(item_path):
+        rel_path = os.path.relpath(item_path, USER_CWD)
+        rel_path = os.path.normpath(rel_path).replace(os.sep, "/")
+        if rel_path in gitignore_entries or f"{rel_path}/" in gitignore_entries:
+            return True
+        for entry in gitignore_entries:
+            if entry.endswith("/") and rel_path.startswith(entry):
+                return True
+        return False
+
+    # Helper function to build the file tree
+    def tree(dir_path, indent=""):
+        nonlocal prefix
+        dir_content = os.listdir(dir_path)
+        dir_content.sort()
+        for i, item in enumerate(dir_content):
+            if item.startswith(".git"):  # Always ignore .git directory
+                continue
+            if ignore_all_hidden and item.startswith("."):
+                continue
+            item_path = os.path.join(dir_path, item)
+            if is_excluded(item_path):
+                continue
+            rel_path = os.path.relpath(item_path, USER_CWD)
+            rel_path = os.path.normpath(rel_path).replace(os.sep, "/")
+            if os.path.isdir(item_path):
+                output.append(f"{indent}{rel_path}/")
+                tree(item_path, indent + "  ")
+            else:
+                output.append(f"{indent}{rel_path}")
+
+    # Start building the tree from the current working directory
+    tree(USER_CWD)
+
+    return "\n".join(output)
 
 
 def write_file(file_path, content):
@@ -222,6 +270,12 @@ class Agent:
     def run(self, query: str) -> None:
         self.chat.append({"role": "user", "content": query})
 
+        files_tree = get_files_dirs()
+        updated_system_prompt = (
+            self.system_prompt
+            + f"\n\nFiles in the current working directory:\n{files_tree}"
+        )
+
         if self.use_memory:
             _messages = self.memory + self.chat
         else:
@@ -230,7 +284,7 @@ class Agent:
         _messages = _messages[-MEMORY_MAX:]
 
         with self.client.messages.stream(
-            system=self.system_prompt,
+            system=updated_system_prompt,
             max_tokens=4096,
             messages=_messages,
             model=self.model,
