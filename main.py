@@ -14,6 +14,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--opus", "-o", action="store_true", help="Use opus model for better responses"
     )
+    parser.add_argument(
+        "--ls",
+        "-l",
+        action="store_true",
+        help="Show Claude all files and directories in the current directory (except those specified in the .gitignore file)",
+    )
 
     # Parse the command-line arguments
     args = parser.parse_args()
@@ -25,6 +31,7 @@ if __name__ == "__main__":
     agent = Agent(
         model="claude-3-opus-20240229" if args.opus else "claude-3-sonnet-20240229",
         use_memory=args.memory,
+        view_list_dir=args.ls,
     )
 
     while True:

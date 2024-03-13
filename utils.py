@@ -57,24 +57,27 @@ def get_files_dirs(use_gitignore=True, ignore_all_hidden=False):
 
     # Helper function to build the file tree
     def tree(dir_path, indent=""):
-        nonlocal prefix
-        dir_content = os.listdir(dir_path)
-        dir_content.sort()
-        for i, item in enumerate(dir_content):
-            if item.startswith(".git"):  # Always ignore .git directory
-                continue
-            if ignore_all_hidden and item.startswith("."):
-                continue
-            item_path = os.path.join(dir_path, item)
-            if is_excluded(item_path):
-                continue
-            rel_path = os.path.relpath(item_path, USER_CWD)
-            rel_path = os.path.normpath(rel_path).replace(os.sep, "/")
-            if os.path.isdir(item_path):
-                output.append(f"{indent}{rel_path}/")
-                tree(item_path, indent + "  ")
-            else:
-                output.append(f"{indent}{rel_path}")
+        try:
+            nonlocal prefix
+            dir_content = os.listdir(dir_path)
+            dir_content.sort()
+            for i, item in enumerate(dir_content):
+                if item.startswith(".git"):  # Always ignore .git directory
+                    continue
+                if ignore_all_hidden and item.startswith("."):
+                    continue
+                item_path = os.path.join(dir_path, item)
+                if is_excluded(item_path):
+                    continue
+                rel_path = os.path.relpath(item_path, USER_CWD)
+                rel_path = os.path.normpath(rel_path).replace(os.sep, "/")
+                if os.path.isdir(item_path):
+                    output.append(f"{indent}{rel_path}/")
+                    tree(item_path, indent + "  ")
+                else:
+                    output.append(f"{indent}{rel_path}")
+        except PermissionError:
+            output.append(f"{indent}Permission denied: {dir_path}")
 
     # Start building the tree from the current working directory
     tree(USER_CWD)
@@ -246,6 +249,7 @@ class Agent:
             "claude-3-opus-20240229", "claude-3-sonnet-20240229"
         ] = "claude-3-sonnet-20240229",
         use_memory=False,
+        view_list_dir=False,
     ) -> None:
         self.client = Anthropic(
             api_key=os.environ.get("ANTHROPIC_API_KEY"),
@@ -255,12 +259,12 @@ class Agent:
         self.chat = []
         if self.use_memory:
             self.load_memory()
+        self.view_list_dir = view_list_dir
         self.system_prompt = f"Your primary function is to assist the user with tasks related to terminal commands in their respective platform. You can also help with code and other queries. Information about the user's platform, environment, and current working directory is provided below.\n\n{USER_INFO}"
 
     def run(self, query: str) -> None:
         self.chat.append({"role": "user", "content": query})
 
-        files_tree = get_files_dirs()
         full_system_prompt = f"""{self.system_prompt}\n\n{construct_tool_use_system_prompt(
                 [
                     FILE_WRITER_TOOL,
@@ -268,7 +272,11 @@ class Agent:
                     FILE_READER_TOOL,
                     FILE_READER_MULTIPLE_TOOL,
                 ]
-            )}\n\nFiles in the current working directory:\n{files_tree}"""
+            )}"""
+
+        if self.view_list_dir:
+            files_tree = get_files_dirs()
+            full_system_prompt += f"\n\nHere's a list of files and directories in the current working directory:\n\n{files_tree}"
 
         if self.use_memory:
             _messages = self.memory + self.chat
