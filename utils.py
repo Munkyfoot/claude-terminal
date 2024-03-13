@@ -255,26 +255,20 @@ class Agent:
         self.chat = []
         if self.use_memory:
             self.load_memory()
-        self.system_prompt = (
-            f"Your primary function is to assist the user with tasks related to terminal commands in their respective platform. You can also help with code and other queries. Information about the user's platform, environment, and current working directory is provided below.\n\n{USER_INFO}\n\n"
-            + construct_tool_use_system_prompt(
+        self.system_prompt = f"Your primary function is to assist the user with tasks related to terminal commands in their respective platform. You can also help with code and other queries. Information about the user's platform, environment, and current working directory is provided below.\n\n{USER_INFO}"
+
+    def run(self, query: str) -> None:
+        self.chat.append({"role": "user", "content": query})
+
+        files_tree = get_files_dirs()
+        full_system_prompt = f"""{self.system_prompt}\n\n{construct_tool_use_system_prompt(
                 [
                     FILE_WRITER_TOOL,
                     FILE_WRITER_MULTIPLE_TOOL,
                     FILE_READER_TOOL,
                     FILE_READER_MULTIPLE_TOOL,
                 ]
-            )
-        )
-
-    def run(self, query: str) -> None:
-        self.chat.append({"role": "user", "content": query})
-
-        files_tree = get_files_dirs()
-        updated_system_prompt = (
-            self.system_prompt
-            + f"\n\nFiles in the current working directory:\n{files_tree}"
-        )
+            )}\n\nFiles in the current working directory:\n{files_tree}"""
 
         if self.use_memory:
             _messages = self.memory + self.chat
@@ -284,7 +278,7 @@ class Agent:
         _messages = _messages[-MEMORY_MAX:]
 
         with self.client.messages.stream(
-            system=updated_system_prompt,
+            system=full_system_prompt,
             max_tokens=4096,
             messages=_messages,
             model=self.model,
@@ -326,168 +320,71 @@ class Agent:
             try:
                 message = message + "</function_calls>"
                 function_calls = extract_between_tags("function_calls", message)
-                for function_call in function_calls:
-                    tool_name = extract_between_tags("tool_name", function_call)[0]
+
+                def process_function_call(tool_name, function_call, query, message):
                     if tool_name == "file_writer":
                         file_name = extract_between_tags("file_path", function_call)[0]
                         content = extract_between_tags("content", function_call)[0]
                         result = write_file(file_name, content)
-                        function_results = (
-                            construct_successful_function_run_injection_prompt(
-                                [{"tool_name": "file_writer", "tool_result": result}]
-                            )
-                        )
-                        partial_assistant_message = message + function_results
-
-                        final_message = (
-                            self.client.messages.create(
-                                model=self.model,
-                                max_tokens=1024,
-                                messages=[
-                                    {"role": "user", "content": query},
-                                    {
-                                        "role": "assistant",
-                                        "content": partial_assistant_message,
-                                    },
-                                ],
-                                system=self.system_prompt,
-                            )
-                            .content[0]
-                            .text
-                        )
-
-                        print(final_message)
-
-                        self.chat.append(
-                            {
-                                "role": "assistant",
-                                "content": f"{partial_assistant_message}\n\n{final_message}",
-                            }
-                        )
-                        break
                     elif tool_name == "file_writer_multiple":
                         files_dict_str = extract_between_tags(
                             "files_dict", function_call
                         )[0]
                         files_dict = json.loads(files_dict_str)
                         result = write_files(files_dict)
-                        function_results = (
-                            construct_successful_function_run_injection_prompt(
-                                [
-                                    {
-                                        "tool_name": "file_writer_multiple",
-                                        "tool_result": result,
-                                    }
-                                ]
-                            )
-                        )
-                        partial_assistant_message = message + function_results
-
-                        final_message = (
-                            self.client.messages.create(
-                                model=self.model,
-                                max_tokens=1024,
-                                messages=[
-                                    {"role": "user", "content": query},
-                                    {
-                                        "role": "assistant",
-                                        "content": partial_assistant_message,
-                                    },
-                                ],
-                                system=self.system_prompt,
-                            )
-                            .content[0]
-                            .text
-                        )
-
-                        print(final_message)
-
-                        self.chat.append(
-                            {
-                                "role": "assistant",
-                                "content": f"{partial_assistant_message}\n\n{final_message}",
-                            }
-                        )
-                        break
                     elif tool_name == "file_reader":
                         file_name = extract_between_tags("file_path", function_call)[0]
                         result = read_file(file_name)
-                        function_results = (
-                            construct_successful_function_run_injection_prompt(
-                                [{"tool_name": "file_reader", "tool_result": result}]
-                            )
-                        )
-                        partial_assistant_message = message + function_results
-
-                        final_message = (
-                            self.client.messages.create(
-                                model=self.model,
-                                max_tokens=1024,
-                                messages=[
-                                    {"role": "user", "content": query},
-                                    {
-                                        "role": "assistant",
-                                        "content": partial_assistant_message,
-                                    },
-                                ],
-                                system=self.system_prompt,
-                            )
-                            .content[0]
-                            .text
-                        )
-
-                        print(final_message)
-
-                        self.chat.append(
-                            {
-                                "role": "assistant",
-                                "content": f"{partial_assistant_message}\n\n{final_message}",
-                            }
-                        )
-                        break
                     elif tool_name == "file_reader_multiple":
                         file_paths = json.loads(
                             extract_between_tags("file_paths", function_call)[0]
                         )
                         result = read_files(file_paths)
-                        function_results = (
-                            construct_successful_function_run_injection_prompt(
-                                [
-                                    {
-                                        "tool_name": "file_reader_multiple",
-                                        "tool_result": result,
-                                    }
-                                ]
-                            )
-                        )
-                        partial_assistant_message = message + function_results
-
-                        final_message = (
-                            self.client.messages.create(
-                                model=self.model,
-                                max_tokens=1024,
-                                messages=[
-                                    {"role": "user", "content": query},
-                                    {
-                                        "role": "assistant",
-                                        "content": partial_assistant_message,
-                                    },
-                                ],
-                                system=self.system_prompt,
-                            )
-                            .content[0]
-                            .text
-                        )
-
-                        print(final_message)
-
-                        self.chat.append(
-                            {
-                                "role": "assistant",
-                                "content": f"{partial_assistant_message}\n\n{final_message}",
-                            }
-                        )
                     else:
+                        return False
+
+                    function_results = (
+                        construct_successful_function_run_injection_prompt(
+                            [{"tool_name": tool_name, "tool_result": result}]
+                        )
+                    )
+                    partial_assistant_message = f"{message}\n\n{function_results}\n\nHere's a brief summary of what was done and what to do next:"
+
+                    final_message = (
+                        self.client.messages.create(
+                            model=self.model,
+                            max_tokens=512,
+                            messages=[
+                                {"role": "user", "content": query},
+                                {
+                                    "role": "assistant",
+                                    "content": partial_assistant_message,
+                                },
+                            ],
+                            system=f"{self.system_prompt}\n\nYou cannot make any more function calls in this response.",
+                        )
+                        .content[0]
+                        .text
+                    )
+
+                    print(final_message)
+
+                    self.chat.append(
+                        {
+                            "role": "assistant",
+                            "content": f"{partial_assistant_message}\n\n{final_message}",
+                        }
+                    )
+
+                    return True
+
+                for function_call in function_calls:
+                    tool_name = extract_between_tags("tool_name", function_call)[0]
+                    result = process_function_call(
+                        tool_name, function_call, query, message
+                    )
+
+                    if result is False:
                         self.chat.append({"role": "assistant", "content": message})
                         break
             except Exception as e:
