@@ -1,6 +1,8 @@
+Here's the updated README with the new function calls and the ability to switch models:
+
 # Claude Terminal
 
-Claude Terminal is a Python-based command-line interface (CLI) tool that allows you to interact with Anthropic's Claude, an AI assistant. It provides a convenient way to chat with Claude and get assistance with various tasks, including terminal commands, code, and other queries. Claude Terminal now supports function calling, which enables the writing of files based on user interactions.
+Claude Terminal is a Python-based command-line interface (CLI) tool that allows you to interact with Anthropic's Claude, an AI assistant. It provides a convenient way to chat with Claude and get assistance with various tasks, including terminal commands, code, and other queries. Claude Terminal supports function calling, which enables the writing and reading of files based on user interactions.
 
 ## Features
 
@@ -8,7 +10,8 @@ Claude Terminal is a Python-based command-line interface (CLI) tool that allows 
 - Get assistance with terminal commands specific to your platform (Linux, Windows, or macOS)
 - Receive help with code and other queries
 - Optionally store conversation history to improve responses over time
-- **New**: Function calling support, enabling file writing based on user interactions
+- Function calling support, enabling file writing and reading based on user interactions
+- **New**: Ability to switch between Claude models (Sonnet and Opus) for better responses
 
 ## Prerequisites
 
@@ -79,6 +82,7 @@ python main.py [query] [flags]
 - `query`: Optional initial query to start the conversation
 - `flags`:
   - `--memory` or `-m`: Save/load conversation history to add long-term memory to the conversation
+  - `--opus` or `-o`: Use the Opus model for better responses (default is Sonnet)
 
 Example (without initial query):
 
@@ -102,15 +106,24 @@ Example (with initial query and memory):
 python main.py "How can I list files in a directory?" --memory
 ```
 
-**Note:** If you provide the `--memory` flag, previous conversation history will be loaded and any new conversation history will be saved to long-term memory in the `memory.json` file. The number of messages saved to memory is limited to value specified in MEMORY_MAX in the `utils.py` file.
+Example (with initial query, memory, and using the Opus model):
 
-## File Writing with Function Calls
+```bash
+python main.py "How can I list files in a directory?" --memory --opus
+```
 
-Claude Terminal now supports function calling, which allows Claude to write files based on user interactions. When Claude generates a response that includes a function call, you will be prompted to confirm whether you want to execute the function.
+## File Writing and Reading with Function Calls
 
-If you choose to run the function, Claude Terminal will process the function call and write the specified file(s) to the designated path(s) relative to the current working directory. The tool will create any necessary directories if they don't already exist.
+Claude Terminal supports function calling, which allows Claude to write and read files based on user interactions. When Claude generates a response that includes a function call, you will be prompted to confirm whether you want to execute the function.
 
-After the file writing is complete, Claude will provide a final response based on the executed function and the conversation context.
+If you choose to run the function, Claude Terminal will process the function call and perform the specified action:
+
+- `file_writer`: Write content to a single file at the specified path relative to the current working directory, creating directories if necessary.
+- `file_writer_multiple`: Write content to multiple files at the specified paths relative to the current working directory, creating directories if necessary.
+- `file_reader`: Read the content of a single file at the specified path relative to the current working directory.
+- `file_reader_multiple`: Read the content of multiple files at the specified paths relative to the current working directory.
+
+After the file writing or reading is complete, Claude will provide a final response based on the executed function and the conversation context.
 
 ## Running from Anywhere
 
@@ -163,7 +176,7 @@ source ~/.bashrc
 Now you can run Claude Terminal from anywhere using the `ask` command:
 
 ```bash
-ask "How can I list files in a directory?"
+ask "How can I list files in a directory?" --memory --opus
 ```
 
 ### macOS
@@ -200,7 +213,7 @@ sudo ln -s /path/to/claude-terminal/ask /usr/local/bin/ask
 Now you can run Claude Terminal from anywhere using the `ask` command:
 
 ```bash
-ask "How can I list files in a directory?"
+ask "How can I list files in a directory?" --memory --opus
 ```
 
 ### Windows
@@ -236,5 +249,5 @@ call C:\path\to\claude-terminal\venv\Scripts\deactivate.bat
 Now you can run Claude Terminal from anywhere using the `ask` command:
 
 ```batch
-ask "How can I list files in a directory?"
+ask "How can I list files in a directory?" --memory --opus
 ```
