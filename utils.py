@@ -23,18 +23,18 @@ else:
     USER_ENV = os.environ.get("SHELL", "unknown")
 
 USER_CWD = os.getcwd()
-USER_CWD_FILES = os.listdir(USER_CWD)
 
 USER_INFO = f"""User's Information:
 - Platform: {USER_PLATFORM}
 - Environment: {USER_ENV}
 - Current Working Directory: {USER_CWD}
-- Files in Current Working Directory: {USER_CWD_FILES}
 """
 
 
 def write_file(file_path, content):
-    print(f"Writing to file '{file_path}'...")
+    print(
+        f"{PrintStyle.GREEN.value}Writing to file '{file_path}'...{PrintStyle.RESET.value}"
+    )
     file_path = os.path.join(USER_CWD, file_path)
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, "w") as file:
@@ -97,7 +97,7 @@ FILE_WRITER_MULTIPLE_TOOL = construct_format_tool_for_claude_prompt(
         {
             "name": "files_dict",
             "type": "dict",
-            "description": "A dictionary where the keys are file paths (relative to the current working directory) and the values are the content to write to each file. Be sure to wrap the keys and values in quotes.",
+            "description": "A dictionary where the keys are file paths (relative to the current working directory) and the values are the content to write to each file. Be sure to use json format for the dictionary/object.",
         },
     ],
 )
@@ -166,7 +166,7 @@ class Agent:
 
         with self.client.messages.stream(
             system=self.system_prompt,
-            max_tokens=1024,
+            max_tokens=4096,
             messages=messages,
             model=self.model,
             stop_sequences=["</function_calls>"],
@@ -182,16 +182,28 @@ class Agent:
                 ):
                     # Clear and overwrite the current line
                     print("\033[K", end="\r")
-                    print(" " * len("<function_calls>"), end="\r", flush=True)
+                    print(f"{PrintStyle.GREEN.value}<function_calls>", flush=True)
                     function_call_detected = True
 
-                if not function_call_detected:
-                    print(text, end="", flush=True)
-            print()
+                print(text, end="", flush=True)
+            print(PrintStyle.RESET.value)
 
         message = stream.get_final_message().content[0].text
 
+        run_functions = False
         if "<function_calls>" in message:
+            if input("Run function calls? (y/[n]): ").lower() == "y":
+                print(
+                    f"{PrintStyle.GREEN.value}Running functions...{PrintStyle.RESET.value}"
+                )
+                run_functions = True
+            else:
+                print(
+                    f"{PrintStyle.YELLOW.value}Aborted running functions.{PrintStyle.RESET.value}"
+                )
+                message = "Aborted running functions."
+
+        if run_functions:
             message = message + "</function_calls>"
             function_calls = extract_between_tags("function_calls", message)
             for function_call in function_calls:
