@@ -1,5 +1,3 @@
-Here's the updated README with the new function calls and the ability to switch models:
-
 # Claude Terminal
 
 Claude Terminal is a Python-based command-line interface (CLI) tool that allows you to interact with Anthropic's Claude, an AI assistant. It provides a convenient way to chat with Claude and get assistance with various tasks, including terminal commands, code, and other queries. Claude Terminal supports function calling, which enables the writing and reading of files based on user interactions.
