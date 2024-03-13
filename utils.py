@@ -244,7 +244,12 @@ class Agent:
 
                     print(final_message)
 
-                    self.chat.append({"role": "assistant", "content": final_message})
+                    self.chat.append(
+                        {
+                            "role": "assistant",
+                            "content": f"{partial_assistant_message}\n\n{final_message}",
+                        }
+                    )
                     break
                 elif tool_name == "file_writer_multiple":
                     files_dict_str = extract_between_tags("files_dict", function_call)[
@@ -283,7 +288,12 @@ class Agent:
 
                     print(final_message)
 
-                    self.chat.append({"role": "assistant", "content": final_message})
+                    self.chat.append(
+                        {
+                            "role": "assistant",
+                            "content": f"{partial_assistant_message}\n\n{final_message}",
+                        }
+                    )
                     break
                 else:
                     self.chat.append({"role": "assistant", "content": message})
