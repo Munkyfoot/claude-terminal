@@ -9,7 +9,8 @@ Claude Terminal is a Python-based command-line interface (CLI) tool that allows 
 - Receive help with code and other queries
 - Optionally store conversation history to improve responses over time
 - Function calling support, enabling file writing and reading based on user interactions
-- **New**: Ability to switch between Claude models (Sonnet and Opus) for better responses
+- Ability to switch between Claude models (Sonnet and Opus) for better responses
+- Option to show Claude all files and directories in the current directory (except those specified in the .gitignore file)
 
 ## Prerequisites
 
@@ -81,6 +82,7 @@ python main.py [query] [flags]
 - `flags`:
   - `--memory` or `-m`: Save/load conversation history to add long-term memory to the conversation
   - `--opus` or `-o`: Use the Opus model for better responses (default is Sonnet)
+  - `--ls` or `-l`: Show Claude all files and directories in the current directory (except those specified in the .gitignore file)
 
 Example (without initial query):
 
@@ -98,16 +100,16 @@ python main.py "How can I list files in a directory?"
 
 **Note:** If you provide an initial query, the conversation will start with that query. You don't need to use quotes for the query, but it is recommended to do so to avoid issues with special characters.
 
-Example (with initial query and memory):
-
-```bash
-python main.py "How can I list files in a directory?" --memory
-```
-
 Example (with initial query, memory, and using the Opus model):
 
 ```bash
 python main.py "How can I list files in a directory?" --memory --opus
+```
+
+Example (with initial query, memory, Opus model, and showing files/directories):
+
+```bash
+python main.py "How can I list files in a directory?" --memory --opus --ls
 ```
 
 ## File Writing and Reading with Function Calls
@@ -174,7 +176,7 @@ source ~/.bashrc
 Now you can run Claude Terminal from anywhere using the `ask` command:
 
 ```bash
-ask "How can I list files in a directory?" --memory --opus
+ask "How can I list files in a directory?" --memory --opus --ls
 ```
 
 ### macOS
@@ -211,7 +213,7 @@ sudo ln -s /path/to/claude-terminal/ask /usr/local/bin/ask
 Now you can run Claude Terminal from anywhere using the `ask` command:
 
 ```bash
-ask "How can I list files in a directory?" --memory --opus
+ask "How can I list files in a directory?" --memory --opus --ls
 ```
 
 ### Windows
@@ -247,5 +249,5 @@ call C:\path\to\claude-terminal\venv\Scripts\deactivate.bat
 Now you can run Claude Terminal from anywhere using the `ask` command:
 
 ```batch
-ask "How can I list files in a directory?" --memory --opus
+ask "How can I list files in a directory?" --memory --opus --ls
 ```
