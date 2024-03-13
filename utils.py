@@ -23,11 +23,13 @@ else:
     USER_ENV = os.environ.get("SHELL", "unknown")
 
 USER_CWD = os.getcwd()
+USER_CWD_FILES = os.listdir(USER_CWD)
 
 USER_INFO = f"""User's Information:
 - Platform: {USER_PLATFORM}
 - Environment: {USER_ENV}
 - Current Working Directory: {USER_CWD}
+- Files in Current Working Directory: {USER_CWD_FILES}
 """
 
 
@@ -48,6 +50,27 @@ def write_files(files_dict):
         result = write_file(file_path, content)
         results.append(result)
     return "\n".join(results)
+
+
+def read_file(file_path):
+    print(
+        f"{PrintStyle.GREEN.value}Reading file '{file_path}'...{PrintStyle.RESET.value}"
+    )
+    file_path = os.path.join(USER_CWD, file_path)
+    try:
+        with open(file_path, "r") as file:
+            content = file.read()
+        return content
+    except FileNotFoundError:
+        return f"File '{file_path}' not found."
+
+
+def read_files(file_paths):
+    results = []
+    for file_path in file_paths:
+        result = f"`{file_path}`:\n```{read_file(file_path)}```"
+        results.append(result)
+    return "\n\n".join(results)
 
 
 def construct_format_tool_for_claude_prompt(name, description, parameters):
@@ -99,6 +122,30 @@ FILE_WRITER_MULTIPLE_TOOL = construct_format_tool_for_claude_prompt(
             "type": "dict",
             "description": "A dictionary where the keys are file paths (relative to the current working directory) and the values are the content to write to each file. Be sure to use json format for the dictionary/object. Keys and values should be single-line strings. Use the escape character for newlines.",
         },
+    ],
+)
+
+FILE_READER_TOOL = construct_format_tool_for_claude_prompt(
+    name="file_reader",
+    description="Reads the content of a file at the specified path relative to the current working directory.",
+    parameters=[
+        {
+            "name": "file_path",
+            "type": "str",
+            "description": "The path of the file to read (relative to the current working directory).",
+        }
+    ],
+)
+
+FILE_READER_MULTIPLE_TOOL = construct_format_tool_for_claude_prompt(
+    name="file_reader_multiple",
+    description="Reads the content of multiple files at the specified paths relative to the current working directory.",
+    parameters=[
+        {
+            "name": "file_paths",
+            "type": "list",
+            "description": "A list of file paths (relative to the current working directory) to read.",
+        }
     ],
 )
 
@@ -156,7 +203,12 @@ class Agent:
         self.system_prompt = (
             f"Your primary function is to assist the user with tasks related to terminal commands in their respective platform. You can also help with code and other queries. Information about the user's platform, environment, and current working directory is provided below.\n\n{USER_INFO}\n\n"
             + construct_tool_use_system_prompt(
-                [FILE_WRITER_TOOL, FILE_WRITER_MULTIPLE_TOOL]
+                [
+                    FILE_WRITER_TOOL,
+                    FILE_WRITER_MULTIPLE_TOOL,
+                    FILE_READER_TOOL,
+                    FILE_READER_MULTIPLE_TOOL,
+                ]
             )
         )
 
@@ -295,6 +347,84 @@ class Agent:
                         }
                     )
                     break
+                elif tool_name == "file_reader":
+                    file_name = extract_between_tags("file_path", function_call)[0]
+                    result = read_file(file_name)
+                    function_results = (
+                        construct_successful_function_run_injection_prompt(
+                            [{"tool_name": "file_reader", "tool_result": result}]
+                        )
+                    )
+                    partial_assistant_message = message + function_results
+
+                    final_message = (
+                        self.client.messages.create(
+                            model=self.model,
+                            max_tokens=1024,
+                            messages=[
+                                {"role": "user", "content": query},
+                                {
+                                    "role": "assistant",
+                                    "content": partial_assistant_message,
+                                },
+                            ],
+                            system=self.system_prompt,
+                        )
+                        .content[0]
+                        .text
+                    )
+
+                    print(final_message)
+
+                    self.chat.append(
+                        {
+                            "role": "assistant",
+                            "content": f"{partial_assistant_message}\n\n{final_message}",
+                        }
+                    )
+                    break
+                elif tool_name == "file_reader_multiple":
+                    file_paths = json.loads(
+                        extract_between_tags("file_paths", function_call)[0]
+                    )
+                    result = read_files(file_paths)
+                    function_results = (
+                        construct_successful_function_run_injection_prompt(
+                            [
+                                {
+                                    "tool_name": "file_reader_multiple",
+                                    "tool_result": result,
+                                }
+                            ]
+                        )
+                    )
+                    partial_assistant_message = message + function_results
+
+                    final_message = (
+                        self.client.messages.create(
+                            model=self.model,
+                            max_tokens=1024,
+                            messages=[
+                                {"role": "user", "content": query},
+                                {
+                                    "role": "assistant",
+                                    "content": partial_assistant_message,
+                                },
+                            ],
+                            system=self.system_prompt,
+                        )
+                        .content[0]
+                        .text
+                    )
+
+                    print(final_message)
+
+                    self.chat.append(
+                        {
+                            "role": "assistant",
+                            "content": f"{partial_assistant_message}\n\n{final_message}",
+                        }
+                    )
                 else:
                     self.chat.append({"role": "assistant", "content": message})
                     break
