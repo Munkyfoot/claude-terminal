@@ -97,7 +97,7 @@ FILE_WRITER_MULTIPLE_TOOL = construct_format_tool_for_claude_prompt(
         {
             "name": "files_dict",
             "type": "dict",
-            "description": "A dictionary where the keys are file paths (relative to the current working directory) and the values are the content to write to each file. Be sure to use json format for the dictionary/object.",
+            "description": "A dictionary where the keys are file paths (relative to the current working directory) and the values are the content to write to each file. Be sure to use json format for the dictionary/object. Keys and values should be single-line strings. Use the escape character for newlines.",
         },
     ],
 )
@@ -105,7 +105,7 @@ FILE_WRITER_MULTIPLE_TOOL = construct_format_tool_for_claude_prompt(
 
 def construct_tool_use_system_prompt(tools):
     tool_use_system_prompt = (
-        "In this environment you have access to a set of tools you can use to answer the user's question.\n"
+        "In this environment you have access to a set of tools you can use to answer the user's question. You should only use these tools if specifically requested to perform an action that requires them.\n"
         "\n"
         "You may call them like this:\n"
         "<function_calls>\n"
@@ -244,6 +244,7 @@ class Agent:
                     files_dict_str = extract_between_tags("files_dict", function_call)[
                         0
                     ]
+                    print(files_dict_str)
                     files_dict = json.loads(files_dict_str)
                     result = write_files(files_dict)
                     function_results = (
